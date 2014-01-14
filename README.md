@@ -1,13 +1,7 @@
-Name
+Wake on LAN
 =====
 
 Description
 -----------
 
-todo
-
-
-Getting started
----------------
-
-todo
+Project for Computer Networks laboratoties.
