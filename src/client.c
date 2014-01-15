@@ -2,26 +2,85 @@
 #include <stdlib.h> /* exit */
 #include <string.h> /* memset & memcpy */
 #include <sys/socket.h> /* socket, sendto, setsockopt */
+#include <arpa/inet.h> /* htonl & htons */
 #include <errno.h> /* errno */
 #include <assert.h> /* assert */
+#include <unistd.h> /* close, getopt */
 
-unsigned char macAddr[7];
 
-static int macTranslate(const char *macAddrHex, unsigned char *macAddrInt);
+int sendWol(const char *macAddrHex, unsigned port);
 
 int main(int argc, char * const argv[])
 {
-    char rawMacAddr[] = "b8:27:eb:c1:71:c1";
-    macTranslate(rawMacAddr, macAddr);
-
+    char macAddrHex[] = "00:e0:4c:02:c5:bb";
+    sendWol(macAddrHex, 9999);
     return 0;
 }
 
+static int macTranslate(const char *macAddrHex, unsigned char *macAddrInt);
 static int strHexToInt(const char *str, size_t strLen, unsigned *iOut);
+static int hexToInt(char c);
+
+int sendWol(const char *macAddrHex, unsigned port)
+{
+    assert(macAddrHex != NULL);
+    if (port < 1024) {
+        printf("Warning! Port %d in superuser port range...", port);
+    }
+
+    unsigned char macAddr[7];
+    unsigned char message[102];
+    unsigned char *messagePtr = message;
+    int sock;
+    int optval = 1;
+    struct sockaddr_in addr;
+    
+    /* Fetch MAC adress */
+    if (macTranslate(macAddrHex, macAddr) < 0) {
+        printf("Specified mac adress is not valid!\n");
+        return -1;
+    }
+
+    if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+        printf("Can't get socket!\n");
+        return -1;
+    }
+
+    /* Build Wake on LAN UDP segment */
+    memset(messagePtr, 0xFF, 6); // 6 x 0xFF
+    messagePtr += 6;
+    for (int i = 0; i < 16; ++i) { // 16 x MACaddr
+        memcpy(messagePtr, macAddr, 6);
+        messagePtr += 6;
+    }
+
+    /* Allow socket sending broadcast messages */
+    if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(optval)) < 0) {
+        perror("setsockopt");
+        close(sock);
+        return -1;
+    }
+
+    /* Set up broadcast address */
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = 0xFFFFFFFF;
+    addr.sin_port = htons(port);
+
+    /* Send */
+    if (sendto(sock, (char *)message, sizeof message, 0, (struct sockaddr *)&addr, sizeof addr) < 0) {
+        perror("sendto");
+        close(sock);
+        return -1;
+    }
+
+    close(sock);
+    return 0;
+}
+
 
 /*  Translate MAC adress from standard format 
     XX:XX:XX:XX:XX:XX or XXXXXXXXXXXX
-    to string of integers IIIIII */
+    to string of unsigned chars IIIIII */
 static int macTranslate(const char *macAddrHex, unsigned char *macAddrInt)
 {
     assert(macAddrHex != NULL);
@@ -45,15 +104,6 @@ static int macTranslate(const char *macAddrHex, unsigned char *macAddrInt)
     return (macAddrHex - origMacAddrHex);
 }
 
-/* Translate single char to int */
-static int hexToInt(char c) 
-{
-    if ('0' <= c && c <= '9') return c - '0';
-    if ('a' <= c && c <= 'f') return c - 'a' + 10;
-    if ('A' <= c && c <= 'F') return c - 'A' + 10;
-    return -1; // c is not a hex value
-}
-
 /* Translate string of hex values to one integer */
 static int strHexToInt(const char *str, size_t strLen, unsigned *iOut) 
 {
@@ -70,4 +120,13 @@ static int strHexToInt(const char *str, size_t strLen, unsigned *iOut)
     }
 
     return strLen;
+}
+
+/* Translate single char to int */
+static int hexToInt(char c) 
+{
+    if ('0' <= c && c <= '9') return c - '0';
+    if ('a' <= c && c <= 'f') return c - 'a' + 10;
+    if ('A' <= c && c <= 'F') return c - 'A' + 10;
+    return -1; // c is not a hex value
 }
