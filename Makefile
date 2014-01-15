@@ -1,8 +1,7 @@
 LD=gcc
 
-LIBS=``
-FLAGS=-Wall
-# FLAGS=-std=c99 -fgnu89-inline -Wall
+LIBS=
+FLAGS=-std=c99 -fgnu89-inline -Wall -g
 
 LDFLAGS=$(FLAGS) $(LIBS)
 
