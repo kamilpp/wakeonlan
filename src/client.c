@@ -1,3 +1,7 @@
+/* 
+ * Simple Wake-on-LAN utility.
+ */
+
 #include <stdio.h> /* printf */
 #include <stdlib.h> /* exit */
 #include <string.h> /* memset & memcpy */
@@ -10,10 +14,11 @@
 
 int sendWol(const char *macAddrHex, unsigned port);
 
-int main(int argc, char * const argv[])
+int main(int argc, char *const argv[])
 {
-    char macAddrHex[] = "00:e0:4c:02:c5:bb";
-    sendWol(macAddrHex, 9999);
+    if (sendWol("00:e0:4c:02:c5:bb", 9999) < 0) {
+        printf("Could not send WoL frame\n");
+    }
     return 0;
 }
 
@@ -24,25 +29,22 @@ static int hexToInt(char c);
 int sendWol(const char *macAddrHex, unsigned port)
 {
     assert(macAddrHex != NULL);
-    if (port < 1024) {
-        printf("Warning! Port %d in superuser port range...", port);
-    }
 
     unsigned char macAddr[7];
     unsigned char message[102];
     unsigned char *messagePtr = message;
     int sock;
     int optval = 1;
-    struct sockaddr_in addr;
+    struct sockaddr_in sAddr;
     
     /* Fetch MAC adress */
     if (macTranslate(macAddrHex, macAddr) < 0) {
-        printf("Specified mac adress is not valid!\n");
+        printf("Specified MAC adress is not valid!\n");
         return -1;
     }
 
     if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
-        printf("Can't get socket!\n");
+        perror("ERROR socket");
         return -1;
     }
 
@@ -56,24 +58,25 @@ int sendWol(const char *macAddrHex, unsigned port)
 
     /* Allow socket sending broadcast messages */
     if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(optval)) < 0) {
-        perror("setsockopt");
+        perror("ERROR setsockopt");
         close(sock);
         return -1;
     }
 
     /* Set up broadcast address */
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = 0xFFFFFFFF;
-    addr.sin_port = htons(port);
+    sAddr.sin_family = AF_INET;
+    sAddr.sin_addr.s_addr = inet_addr("192.168.0.255");
+    sAddr.sin_port = htons(port);
 
     /* Send */
-    if (sendto(sock, (char *)message, sizeof message, 0, (struct sockaddr *)&addr, sizeof addr) < 0) {
-        perror("sendto");
+    if (sendto(sock, (char *)message, sizeof(message), 0, (struct sockaddr *)&sAddr, sizeof(sAddr)) < 0) {
+        perror("ERROR sendto");
         close(sock);
         return -1;
     }
 
     close(sock);
+    printf("WoL frame succesfuly send to %s\n", macAddrHex);
     return 0;
 }
 
