@@ -35,11 +35,28 @@ int main(int argc, char *argv[])
             }
         } else if (!fork()) {
             close(sock);
-            char buff[100] = "\0";
+            char buff[100];
+            size_t read;
 
             while (true) {
-                if (read(sockClient, &buff, sizeof(buff)) > 0) {
-                    printf("%s\n", buff);
+                memset(buff, 0, sizeof(buff));
+                if ((read = recv(sockClient, &buff, sizeof(buff), 0)) <= 0) {
+                    if (read < 0) {
+                        perror("ERROR recv");
+                        return -1;
+                    } else {
+                        break;
+                    }
+                } else {
+                    if (!strncmp(buff, "shutdown", 8)) {
+                        printf("Shutting down the system...\n");
+                        execlp("shutdown", "shutdown", "-h", "now", NULL);
+                        break;
+                    } else if (!strncmp(buff, "capture", 7)) {
+
+                    } else {
+                        printf("Unknown request: %s", buff);
+                    }
                 }
             }
             printf("Terminating connection...\n");
