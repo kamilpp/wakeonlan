@@ -6,9 +6,11 @@
 #include <netdb.h> /* gethostbyname */
 #include <errno.h> /* errno */
 #include <assert.h> /* assert */
-#include <unistd.h> /* close, getopt, fork, execlp */
+#include <unistd.h> /* close, getopt, fork, execlp, dup2 */
 #include <sys/select.h> /* select, fd_set */
+#include <sys/wait.h>
 #define QUEUE_SIZE 5
+#define PORT 1500
 
 typedef enum {
     false,
@@ -22,7 +24,7 @@ int sock, sockClient;
 
 int main(int argc, char *argv[]) 
 {
-    if ((sock = listenTCP(1500)) < 0) {
+    if ((sock = listenTCP(PORT)) < 0) {
         printf("Server could not be started!\n");
         return -1;
     }
@@ -36,12 +38,12 @@ int main(int argc, char *argv[])
         } else if (!fork()) {
             close(sock);
             char buff[100];
-            size_t read;
+            size_t nRead;
 
             while (true) {
                 memset(buff, 0, sizeof(buff));
-                if ((read = recv(sockClient, &buff, sizeof(buff), 0)) <= 0) {
-                    if (read < 0) {
+                if ((nRead = recv(sockClient, &buff, sizeof(buff), 0)) <= 0) {
+                    if (nRead < 0) {
                         perror("ERROR recv");
                         return -1;
                     } else {
@@ -50,10 +52,20 @@ int main(int argc, char *argv[])
                 } else {
                     if (!strncmp(buff, "shutdown", 8)) {
                         printf("Shutting down the system...\n");
+                        // dup2(sockClient, 1);
+                        // dup2(sockClient, 2);
                         execlp("shutdown", "shutdown", "-h", "now", NULL);
                         break;
-                    } else if (!strncmp(buff, "capture", 7)) {
-
+                    } else if (!strncmp(buff, "test", 4)) {
+                        printf("Test...\n");
+                        int pid;
+                        if (!(pid = fork())) {
+                            dup2(sockClient, 1);
+                            dup2(sockClient, 2);
+                            close(sockClient);
+                            execlp("ls", "ls", NULL);
+                        }
+                        waitpid(pid, NULL, 0);
                     } else {
                         printf("Unknown request: %s", buff);
                     }
