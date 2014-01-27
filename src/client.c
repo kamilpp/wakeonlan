@@ -11,12 +11,11 @@
 #include <assert.h> /* assert */
 #include <unistd.h> /* close, getopt */
 
-
-int sendWol(const char *macAddrHex, unsigned port);
+int sendWol(const char *macAddrHex, const char *broadcastIP, unsigned port);
 
 int main(int argc, char *const argv[])
 {
-    if (sendWol("00:e0:4c:02:c5:bb", 9999) < 0) {
+    if (sendWol("00:e0:4c:02:c5:bb", "192.168.0.255", 9999) < 0) {
         printf("Could not send WoL frame\n");
     }
     return 0;
@@ -26,7 +25,7 @@ static int macTranslate(const char *macAddrHex, unsigned char *macAddrInt);
 static int strHexToInt(const char *str, size_t strLen, unsigned *iOut);
 static int hexToInt(char c);
 
-int sendWol(const char *macAddrHex, unsigned port)
+int sendWol(const char *macAddrHex, const char *broadcastIP, unsigned port)
 {
     assert(macAddrHex != NULL);
 
@@ -65,7 +64,7 @@ int sendWol(const char *macAddrHex, unsigned port)
 
     /* Set up broadcast address */
     sAddr.sin_family = AF_INET;
-    sAddr.sin_addr.s_addr = inet_addr("192.168.0.255");
+    sAddr.sin_addr.s_addr = inet_addr(broadcastIP);
     sAddr.sin_port = htons(port);
 
     /* Send */
